@@ -65,17 +65,17 @@ impl Settings {
         let val = val.trim().trim_matches('"').trim_matches('\'');
         match key {
             "sample_rate" | "rate" => {
-                if let Ok(v) = val.parse::<u32>() {
-                    if (8000..=384000).contains(&v) {
-                        self.sample_rate = v;
-                    }
+                if let Ok(v) = val.parse::<u32>()
+                    && (8000..=384000).contains(&v)
+                {
+                    self.sample_rate = v;
                 }
             }
             "buffer_size" | "buffer" => {
-                if let Ok(v) = val.parse::<u32>() {
-                    if (16..=8192).contains(&v) {
-                        self.buffer_size = v;
-                    }
+                if let Ok(v) = val.parse::<u32>()
+                    && (16..=8192).contains(&v)
+                {
+                    self.buffer_size = v;
                 }
             }
             "outputs" => {
@@ -95,27 +95,29 @@ impl Settings {
                 }
             }
             "quantum" => {
-                if let Ok(v) = val.parse::<u32>() {
-                    if (16..=8192).contains(&v) {
-                        self.quantum = v;
-                    }
+                if let Ok(v) = val.parse::<u32>()
+                    && (16..=8192).contains(&v)
+                {
+                    self.quantum = v;
                 }
             }
             "fixed_buffer" => self.fixed_buffer = parse_bool(val).unwrap_or(self.fixed_buffer),
             "log" => self.log = parse_bool(val).unwrap_or(self.log),
             "auto_connect" => self.auto_connect = parse_bool(val).unwrap_or(self.auto_connect),
             "target" | "output_device" => {
-                self.target = if val.is_empty() { None } else { Some(val.to_string()) }
+                self.target = if val.is_empty() {
+                    None
+                } else {
+                    Some(val.to_string())
+                }
             }
             "rt_priority" => {
                 if let Ok(v) = val.parse::<i32>() {
                     self.rt_priority = v.clamp(0, 99);
                 }
             }
-            "node_name" => {
-                if !val.is_empty() {
-                    self.node_name = val.to_string();
-                }
+            "node_name" if !val.is_empty() => {
+                self.node_name = val.to_string();
             }
             _ => {}
         }
@@ -150,7 +152,10 @@ impl Settings {
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir)?;
         }
-        let mut f = std::fs::OpenOptions::new().write(true).create_new(true).open(path)?;
+        let mut f = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(path)?;
         f.write_all(DEFAULT_CONFIG.as_bytes())
     }
 
@@ -161,7 +166,9 @@ impl Settings {
                 Ok(text) => s.apply_text(&text),
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
                     match Self::write_default(&path) {
-                        Ok(()) => eprintln!("[rustasio] wrote default config to {}", path.display()),
+                        Ok(()) => {
+                            eprintln!("[rustasio] wrote default config to {}", path.display())
+                        }
                         Err(e) => eprintln!("[rustasio] cannot create {}: {e}", path.display()),
                     }
                 }
@@ -211,7 +218,10 @@ mod tests {
         Settings::write_default(&path).unwrap();
         assert_eq!(std::fs::read_to_string(&path).unwrap(), DEFAULT_CONFIG);
         std::fs::write(&path, "headroom = 512\n").unwrap();
-        assert!(Settings::write_default(&path).is_err(), "must not overwrite");
+        assert!(
+            Settings::write_default(&path).is_err(),
+            "must not overwrite"
+        );
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "headroom = 512\n");
         std::fs::remove_dir_all(&dir).unwrap();
     }

@@ -48,7 +48,11 @@ unsafe extern "C" fn unix_init(args: *mut c_void) -> i32 {
         if g.is_none() {
             let s = config::Settings::load();
             LOG.store(s.log, Ordering::Relaxed);
-            log!("config: {:?} (file: {:?})", s, config::Settings::config_path());
+            log!(
+                "config: {:?} (file: {:?})",
+                s,
+                config::Settings::config_path()
+            );
             match engine::Engine::new(s) {
                 Ok(e) => *g = Some(e),
                 Err(e) => {
@@ -76,12 +80,12 @@ unsafe extern "C" fn unix_init(args: *mut c_void) -> i32 {
 }
 
 unsafe extern "C" fn unix_exit(_args: *mut c_void) -> i32 {
-    (|| {
+    {
         let e = engine::ENGINE.lock().unwrap().take();
         drop(e);
         log!("exit");
         STATUS_OK
-    })()
+    }
 }
 
 unsafe extern "C" fn unix_create_buffers(args: *mut c_void) -> i32 {
@@ -91,7 +95,9 @@ unsafe extern "C" fn unix_create_buffers(args: *mut c_void) -> i32 {
             return STATUS_INVALID;
         }
         let mut g = engine::ENGINE.lock().unwrap();
-        let Some(e) = g.as_mut() else { return STATUS_FAIL };
+        let Some(e) = g.as_mut() else {
+            return STATUS_FAIL;
+        };
         match e.create_buffers(p) {
             Ok(()) => STATUS_OK,
             Err(err) => {
@@ -103,18 +109,20 @@ unsafe extern "C" fn unix_create_buffers(args: *mut c_void) -> i32 {
 }
 
 unsafe extern "C" fn unix_dispose_buffers(_args: *mut c_void) -> i32 {
-    (|| {
+    {
         if let Some(e) = engine::ENGINE.lock().unwrap().as_mut() {
             e.dispose_buffers();
         }
         STATUS_OK
-    })()
+    }
 }
 
 unsafe extern "C" fn unix_start(_args: *mut c_void) -> i32 {
     (|| {
         let mut g = engine::ENGINE.lock().unwrap();
-        let Some(e) = g.as_mut() else { return STATUS_FAIL };
+        let Some(e) = g.as_mut() else {
+            return STATUS_FAIL;
+        };
         match e.start() {
             Ok(()) => STATUS_OK,
             Err(err) => {
@@ -126,12 +134,12 @@ unsafe extern "C" fn unix_start(_args: *mut c_void) -> i32 {
 }
 
 unsafe extern "C" fn unix_stop(_args: *mut c_void) -> i32 {
-    (|| {
+    {
         if let Some(e) = engine::ENGINE.lock().unwrap().as_mut() {
             e.stop();
         }
         STATUS_OK
-    })()
+    }
 }
 
 unsafe extern "C" fn unix_wait(args: *mut c_void) -> i32 {
@@ -157,7 +165,9 @@ unsafe extern "C" fn unix_set_rate(args: *mut c_void) -> i32 {
     (|| {
         let p = unsafe { &*(args as *const SetRateParams) };
         let mut g = engine::ENGINE.lock().unwrap();
-        let Some(e) = g.as_mut() else { return STATUS_FAIL };
+        let Some(e) = g.as_mut() else {
+            return STATUS_FAIL;
+        };
         e.set_rate(p.sample_rate);
         log!("sample rate -> {}", p.sample_rate);
         STATUS_OK

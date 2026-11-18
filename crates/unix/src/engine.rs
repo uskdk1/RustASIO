@@ -56,7 +56,10 @@ fn futex_wake(word: &AtomicU32) {
 }
 
 pub fn monotonic_ns() -> u64 {
-    let mut ts = libc::timespec { tv_sec: 0, tv_nsec: 0 };
+    let mut ts = libc::timespec {
+        tv_sec: 0,
+        tv_nsec: 0,
+    };
     unsafe { libc::clock_gettime(libc::CLOCK_MONOTONIC, &mut ts) };
     ts.tv_sec as u64 * 1_000_000_000 + ts.tv_nsec as u64
 }
@@ -136,7 +139,14 @@ impl Ring {
         let data = (0..nch)
             .map(|_| Box::into_raw(vec![0f32; cap as usize].into_boxed_slice()) as *mut f32)
             .collect();
-        Ring { data, cap, target, frames, format, host }
+        Ring {
+            data,
+            cap,
+            target,
+            frames,
+            format,
+            host,
+        }
     }
 
     fn clear(&self) {
@@ -150,7 +160,10 @@ impl Drop for Ring {
     fn drop(&mut self) {
         for &d in &self.data {
             unsafe {
-                drop(Box::from_raw(std::ptr::slice_from_raw_parts_mut(d, self.cap as usize)));
+                drop(Box::from_raw(std::ptr::slice_from_raw_parts_mut(
+                    d,
+                    self.cap as usize,
+                )));
             }
         }
     }
@@ -158,7 +171,8 @@ impl Drop for Ring {
 
 /// Current ring (null in sync mode / without buffers). Read by `wait`/`done`
 /// on the host thread; freed only after the host thread is stopped.
-static RING: std::sync::atomic::AtomicPtr<Ring> = std::sync::atomic::AtomicPtr::new(ptr::null_mut());
+static RING: std::sync::atomic::AtomicPtr<Ring> =
+    std::sync::atomic::AtomicPtr::new(ptr::null_mut());
 
 impl Shared {
     /// Publish a fill request for `half`. Called from the RT thread.
@@ -236,7 +250,8 @@ unsafe extern "C" fn on_state_changed(
 unsafe extern "C" fn on_io_changed(data: *mut c_void, id: u32, area: *mut c_void, _size: u32) {
     if id == spa::SPA_IO_Position {
         let rt = unsafe { &*(*(data as *const UnsafeCell<Rt>)).get() };
-        rt.position.store(area as *mut spa::spa_io_position, Release);
+        rt.position
+            .store(area as *mut spa::spa_io_position, Release);
     }
 }
 
@@ -260,7 +275,11 @@ unsafe extern "C" fn on_process(data: *mut c_void) {
             }
             (c.duration as u32, c.nsec)
         };
-        let mut n = if (*b).requested != 0 { (*b).requested as u32 } else { quantum };
+        let mut n = if (*b).requested != 0 {
+            (*b).requested as u32
+        } else {
+            quantum
+        };
         let mut dst: [*mut f32; MAX_CHANNELS] = [ptr::null_mut(); MAX_CHANNELS];
         for (i, d) in dst.iter_mut().enumerate().take(nd) {
             let sd = &*buf.datas.add(i);
@@ -515,16 +534,48 @@ fn audio_format_pod(rate: u32, channels: u32) -> Vec<u64> {
     };
     // object body: type, id
     let mut body: Vec<u32> = vec![spa::SPA_TYPE_OBJECT_Format, spa::SPA_PARAM_EnumFormat];
-    prop_scalar(&mut body, spa::SPA_FORMAT_mediaType, spa::SPA_TYPE_Id, spa::SPA_MEDIA_TYPE_audio);
-    prop_scalar(&mut body, spa::SPA_FORMAT_mediaSubtype, spa::SPA_TYPE_Id, spa::SPA_MEDIA_SUBTYPE_raw);
-    prop_scalar(&mut body, spa::SPA_FORMAT_AUDIO_format, spa::SPA_TYPE_Id, spa::SPA_AUDIO_FORMAT_F32P);
-    prop_scalar(&mut body, spa::SPA_FORMAT_AUDIO_rate, spa::SPA_TYPE_Int, rate);
-    prop_scalar(&mut body, spa::SPA_FORMAT_AUDIO_channels, spa::SPA_TYPE_Int, channels);
+    prop_scalar(
+        &mut body,
+        spa::SPA_FORMAT_mediaType,
+        spa::SPA_TYPE_Id,
+        spa::SPA_MEDIA_TYPE_audio,
+    );
+    prop_scalar(
+        &mut body,
+        spa::SPA_FORMAT_mediaSubtype,
+        spa::SPA_TYPE_Id,
+        spa::SPA_MEDIA_SUBTYPE_raw,
+    );
+    prop_scalar(
+        &mut body,
+        spa::SPA_FORMAT_AUDIO_format,
+        spa::SPA_TYPE_Id,
+        spa::SPA_AUDIO_FORMAT_F32P,
+    );
+    prop_scalar(
+        &mut body,
+        spa::SPA_FORMAT_AUDIO_rate,
+        spa::SPA_TYPE_Int,
+        rate,
+    );
+    prop_scalar(
+        &mut body,
+        spa::SPA_FORMAT_AUDIO_channels,
+        spa::SPA_TYPE_Int,
+        channels,
+    );
     if (channels as usize) <= POS.len() {
         // array pod: header {size, Array} + child {4, Id} + values, padded to 8
         let n = channels as usize;
         let size = 8 + 4 * n as u32;
-        body.extend_from_slice(&[spa::SPA_FORMAT_AUDIO_position, 0, size, spa::SPA_TYPE_Array, 4, spa::SPA_TYPE_Id]);
+        body.extend_from_slice(&[
+            spa::SPA_FORMAT_AUDIO_position,
+            0,
+            size,
+            spa::SPA_TYPE_Array,
+            4,
+            spa::SPA_TYPE_Id,
+        ]);
         body.extend_from_slice(&POS[..n]);
         if n % 2 == 1 {
             body.push(0);
@@ -573,7 +624,13 @@ impl Engine {
                 pw::pw_thread_loop_destroy(tl);
                 return Err("cannot connect to PipeWire".into());
             }
-            Ok(Engine { settings, tl, ctx, core, stream: None })
+            Ok(Engine {
+                settings,
+                tl,
+                ctx,
+                core,
+                stream: None,
+            })
         }
     }
 
@@ -601,7 +658,11 @@ impl Engine {
             props_set(props, "node.force-rate", &rate.to_string());
             props_set(props, "node.lock-quantum", "true");
             props_set(props, "node.always-process", "true");
-            props_set(props, "node.autoconnect", if s.auto_connect { "true" } else { "false" });
+            props_set(
+                props,
+                "node.autoconnect",
+                if s.auto_connect { "true" } else { "false" },
+            );
             if let Some(t) = &s.target {
                 props_set(props, "target.object", t);
             }
@@ -609,8 +670,15 @@ impl Engine {
             let host_bufs: Vec<[*const u8; 2]> = (0..nout)
                 .map(|c| [p.outputs[c][0] as *const u8, p.outputs[c][1] as *const u8])
                 .collect();
-            let ring = (!s.sync)
-                .then(|| Box::new(Ring::new(nout, frames, headroom, p.sample_format, host_bufs.clone())));
+            let ring = (!s.sync).then(|| {
+                Box::new(Ring::new(
+                    nout,
+                    frames,
+                    headroom,
+                    p.sample_format,
+                    host_bufs.clone(),
+                ))
+            });
             let mut rt = Box::new(UnsafeCell::new(Rt {
                 stream: ptr::null_mut(),
                 nch: nout,
@@ -651,7 +719,7 @@ impl Engine {
                     | pw::pw_stream_flags_PW_STREAM_FLAG_MAP_BUFFERS
                     | pw::pw_stream_flags_PW_STREAM_FLAG_RT_PROCESS
                     | pw::pw_stream_flags_PW_STREAM_FLAG_INACTIVE,
-                params.as_mut_ptr() as *mut *const _,
+                params.as_mut_ptr(),
                 1,
             );
             if r < 0 {
@@ -660,12 +728,21 @@ impl Engine {
             }
             log!(
                 "stream created: {nout} out, {frames} frames @ {rate} Hz, {}",
-                if s.sync { "sync".to_string() } else { format!("ring, quantum {quantum}, headroom {headroom}") }
+                if s.sync {
+                    "sync".to_string()
+                } else {
+                    format!("ring, quantum {quantum}, headroom {headroom}")
+                }
             );
             if let Some(r) = &ring {
                 RING.store(&**r as *const Ring as *mut Ring, Release);
             }
-            self.stream = Some(Stream { stream, hook, rt, ring });
+            self.stream = Some(Stream {
+                stream,
+                hook,
+                rt,
+                ring,
+            });
         }
         Ok(())
     }
@@ -744,7 +821,11 @@ impl Engine {
                 let rt = &*st.rt.get();
                 let props = pw::pw_properties_new(ptr::null());
                 props_set(props, "node.force-rate", &rate.to_string());
-                let q = if rt.sync { rt.frames } else { self.settings.quantum };
+                let q = if rt.sync {
+                    rt.frames
+                } else {
+                    self.settings.quantum
+                };
                 props_set(props, "node.latency", &format!("{q}/{rate}"));
                 pw::pw_stream_update_properties(st.stream, &(*props).dict);
                 pw::pw_properties_free(props);
@@ -760,7 +841,10 @@ impl Engine {
             return;
         }
         unsafe {
-            let mut lim = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
+            let mut lim = libc::rlimit {
+                rlim_cur: 0,
+                rlim_max: 0,
+            };
             if libc::getrlimit(libc::RLIMIT_RTPRIO, &mut lim) == 0
                 && lim.rlim_cur != libc::RLIM_INFINITY
                 && (lim.rlim_cur as i32) < prio
@@ -768,9 +852,13 @@ impl Engine {
             {
                 prio = lim.rlim_cur as i32;
             }
-            let param = libc::sched_param { sched_priority: prio };
+            let param = libc::sched_param {
+                sched_priority: prio,
+            };
             // pid 0 = calling thread on Linux
-            if libc::sched_setscheduler(0, libc::SCHED_FIFO | libc::SCHED_RESET_ON_FORK, &param) == 0 {
+            if libc::sched_setscheduler(0, libc::SCHED_FIFO | libc::SCHED_RESET_ON_FORK, &param)
+                == 0
+            {
                 log!("host thread: SCHED_FIFO {prio}");
                 return;
             }
@@ -780,7 +868,9 @@ impl Engine {
                 log!("host thread: SCHED_FIFO failed ({err}); using nice -11");
                 return;
             }
-            log!("host thread: no realtime scheduling ({err}); raise RLIMIT_RTPRIO for better timing");
+            log!(
+                "host thread: no realtime scheduling ({err}); raise RLIMIT_RTPRIO for better timing"
+            );
         }
     }
 }
@@ -828,18 +918,22 @@ fn report(now: u64) {
         sh.xruns.load(Relaxed),
         sh.graph_quantum.load(Relaxed),
         sh.graph_rate.load(Relaxed),
-        sh.req_seq.load(Relaxed).wrapping_sub(sh.done_seq.load(Relaxed)),
-        sh.ring_w.load(Relaxed).wrapping_sub(sh.ring_r.load(Relaxed)),
+        sh.req_seq
+            .load(Relaxed)
+            .wrapping_sub(sh.done_seq.load(Relaxed)),
+        sh.ring_w
+            .load(Relaxed)
+            .wrapping_sub(sh.ring_r.load(Relaxed)),
     );
 }
 
 /// Block the host thread until the next fill request (or stop).
 pub fn wait(out: &mut WaitParams) {
     let sh = &SHARED;
-    if !sh.host_rt.swap(true, AcqRel) {
-        if let Some(e) = ENGINE.lock().unwrap().as_ref() {
-            e.make_current_thread_rt();
-        }
+    if !sh.host_rt.swap(true, AcqRel)
+        && let Some(e) = ENGINE.lock().unwrap().as_ref()
+    {
+        e.make_current_thread_rt();
     }
     let ring = RING.load(Acquire);
     if !ring.is_null() {
@@ -885,7 +979,10 @@ fn wait_ring(ring: &Ring, out: &mut WaitParams) {
             return;
         }
         let v = sh.space_seq.load(Acquire);
-        let level = sh.ring_w.load(Relaxed).wrapping_sub(sh.ring_r.load(Acquire));
+        let level = sh
+            .ring_w
+            .load(Relaxed)
+            .wrapping_sub(sh.ring_r.load(Acquire));
         if level + ring.frames as u64 <= ring.target {
             let half = sh.host_half.fetch_xor(1, Relaxed);
             let blk = sh.blocks.fetch_add(1, Relaxed);

@@ -36,7 +36,8 @@ mod win {
         stop: unsafe extern "system" fn(This) -> i32,
         get_channels: unsafe extern "system" fn(This, *mut i32, *mut i32) -> i32,
         get_latencies: unsafe extern "system" fn(This, *mut i32, *mut i32) -> i32,
-        get_buffer_size: unsafe extern "system" fn(This, *mut i32, *mut i32, *mut i32, *mut i32) -> i32,
+        get_buffer_size:
+            unsafe extern "system" fn(This, *mut i32, *mut i32, *mut i32, *mut i32) -> i32,
         can_sample_rate: unsafe extern "system" fn(This, f64) -> i32,
         get_sample_rate: unsafe extern "system" fn(This, *mut f64) -> i32,
         set_sample_rate: unsafe extern "system" fn(This, f64) -> i32,
@@ -44,7 +45,8 @@ mod win {
         set_clock_source: usize,
         get_sample_position: unsafe extern "system" fn(This, *mut [u32; 2], *mut [u32; 2]) -> i32,
         get_channel_info: unsafe extern "system" fn(This, *mut ChannelInfo) -> i32,
-        create_buffers: unsafe extern "system" fn(This, *mut BufferInfo, i32, i32, *const Callbacks) -> i32,
+        create_buffers:
+            unsafe extern "system" fn(This, *mut BufferInfo, i32, i32, *const Callbacks) -> i32,
         dispose_buffers: unsafe extern "system" fn(This) -> i32,
         control_panel: usize,
         future: usize,
@@ -82,7 +84,12 @@ mod win {
         ty: i32,
         rate: f64,
     }
-    static mut HOST: Host = Host { bufs: [[std::ptr::null_mut(); 2]; 2], frames: 0, ty: 19, rate: 48000.0 };
+    static mut HOST: Host = Host {
+        bufs: [[std::ptr::null_mut(); 2]; 2],
+        frames: 0,
+        ty: 19,
+        rate: 48000.0,
+    };
     static SWITCHES: AtomicU64 = AtomicU64::new(0);
     static LAST_US: AtomicU64 = AtomicU64::new(0);
     static MAX_GAP_US: AtomicU64 = AtomicU64::new(0);
@@ -129,8 +136,8 @@ mod win {
     unsafe extern "C" fn message(sel: i32, val: i32, _m: *mut c_void, _o: *mut f64) -> i32 {
         match sel {
             1 => matches!(val, 1 | 2 | 3 | 4 | 7) as i32, // selector supported
-            2 => 2,                                        // engine version
-            7 => 1,                                        // supports time info
+            2 => 2,                                       // engine version
+            7 => 1,                                       // supports time info
             _ => 0,
         }
     }
@@ -152,12 +159,23 @@ mod win {
             loop {
                 let mut name = [0u16; 256];
                 let mut len = name.len() as u32;
-                if RegEnumKeyExW(key, i, name.as_mut_ptr(), &mut len, std::ptr::null(), std::ptr::null_mut(),
-                    std::ptr::null_mut(), std::ptr::null_mut()) != 0
+                if RegEnumKeyExW(
+                    key,
+                    i,
+                    name.as_mut_ptr(),
+                    &mut len,
+                    std::ptr::null(),
+                    std::ptr::null_mut(),
+                    std::ptr::null_mut(),
+                    std::ptr::null_mut(),
+                ) != 0
                 {
                     break;
                 }
-                println!("ASIO driver: {}", String::from_utf16_lossy(&name[..len as usize]));
+                println!(
+                    "ASIO driver: {}",
+                    String::from_utf16_lossy(&name[..len as usize])
+                );
                 i += 1;
             }
             RegCloseKey(key);
@@ -165,24 +183,42 @@ mod win {
     }
 
     static mut LOGF: Option<std::fs::File> = None;
+    /// Print to stdout and C:\asiotest.log (Proton does not show console output).
+    fn emit(s: &str) {
+        use std::io::Write;
+        let line = format!("{s}\n");
+        std::io::stdout().write_all(line.as_bytes()).ok();
+        #[allow(static_mut_refs)]
+        // SAFETY: LOGF is set once at the start of main, before any other thread runs.
+        if let Some(f) = unsafe { LOGF.as_mut() } {
+            f.write_all(line.as_bytes()).ok();
+        }
+    }
+
     macro_rules! println {
-        ($($t:tt)*) => {{
-            let s = format!($($t)*);
-            std::io::Write::write_all(&mut std::io::stdout(), format!("{s}\n").as_bytes()).ok();
-            #[allow(static_mut_refs)]
-            if let Some(f) = unsafe { LOGF.as_mut() } { std::io::Write::write_all(f, format!("{s}\n").as_bytes()).ok(); }
-        }};
+        ($($t:tt)*) => {
+            emit(&format!($($t)*))
+        };
     }
 
     pub fn main() {
         unsafe { LOGF = std::fs::File::create("C:\\asiotest.log").ok() };
-        let secs: f64 = std::env::args().nth(1).and_then(|s| s.parse().ok()).unwrap_or(5.0);
+        let secs: f64 = std::env::args()
+            .nth(1)
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(5.0);
         list_drivers();
         unsafe {
             T0 = Some(Instant::now());
             CoInitializeEx(std::ptr::null(), COINIT_APARTMENTTHREADED as u32);
             let mut p: *mut c_void = std::ptr::null_mut();
-            let hr = CoCreateInstance(&CLSID, std::ptr::null_mut(), CLSCTX_INPROC_SERVER, &CLSID, &mut p);
+            let hr = CoCreateInstance(
+                &CLSID,
+                std::ptr::null_mut(),
+                CLSCTX_INPROC_SERVER,
+                &CLSID,
+                &mut p,
+            );
             if hr != 0 || p.is_null() {
                 println!("CoCreateInstance failed: {hr:#x}");
                 std::process::exit(1);
@@ -203,18 +239,44 @@ mod win {
             (v.get_buffer_size)(d, &mut mn, &mut mx, &mut pref, &mut gr);
             let mut rate = 0.0;
             (v.get_sample_rate)(d, &mut rate);
-            println!("channels in={ni} out={no}; buffer min={mn} max={mx} pref={pref} gran={gr}; rate={rate}");
-            println!("canSampleRate(44100)={} (48000)={}", (v.can_sample_rate)(d, 44100.0), (v.can_sample_rate)(d, 48000.0));
+            println!(
+                "channels in={ni} out={no}; buffer min={mn} max={mx} pref={pref} gran={gr}; rate={rate}"
+            );
+            println!(
+                "canSampleRate(44100)={} (48000)={}",
+                (v.can_sample_rate)(d, 44100.0),
+                (v.can_sample_rate)(d, 48000.0)
+            );
             println!("setSampleRate(48000)={}", (v.set_sample_rate)(d, 48000.0));
-            let mut ci = ChannelInfo { channel: 0, is_input: 0, is_active: 0, group: 0, ty: 0, name: [0; 32] };
+            let mut ci = ChannelInfo {
+                channel: 0,
+                is_input: 0,
+                is_active: 0,
+                group: 0,
+                ty: 0,
+                name: [0; 32],
+            };
             (v.get_channel_info)(d, &mut ci);
             println!("channel 0: type={} name={}", ci.ty, cstr(&ci.name));
 
             let mut infos = [
-                BufferInfo { is_input: 0, channel: 0, buffers: [std::ptr::null_mut(); 2] },
-                BufferInfo { is_input: 0, channel: 1, buffers: [std::ptr::null_mut(); 2] },
+                BufferInfo {
+                    is_input: 0,
+                    channel: 0,
+                    buffers: [std::ptr::null_mut(); 2],
+                },
+                BufferInfo {
+                    is_input: 0,
+                    channel: 1,
+                    buffers: [std::ptr::null_mut(); 2],
+                },
             ];
-            static CB: Callbacks = Callbacks { buffer_switch, rate_changed, message, buffer_switch_ti };
+            static CB: Callbacks = Callbacks {
+                buffer_switch,
+                rate_changed,
+                message,
+                buffer_switch_ti,
+            };
             let r = (v.create_buffers)(d, infos.as_mut_ptr(), 2, pref, &CB);
             println!("createBuffers = {r}");
             if r != 0 {

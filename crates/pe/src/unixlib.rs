@@ -67,6 +67,9 @@ pub fn call0(f: Func) -> i32 {
 }
 
 pub fn log(msg: &str) {
-    let mut p = LogParams { ptr: msg.as_ptr() as u64, len: msg.len() as u64 };
+    let mut p = LogParams {
+        ptr: msg.as_ptr() as u64,
+        len: msg.len() as u64,
+    };
     call(Func::Log, &mut p);
 }

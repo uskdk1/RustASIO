@@ -9,7 +9,10 @@ fn call<T>(f: Func, p: &mut T) -> i32 {
 }
 
 fn main() {
-    let secs: f64 = std::env::args().nth(1).and_then(|s| s.parse().ok()).unwrap_or(5.0);
+    let secs: f64 = std::env::args()
+        .nth(1)
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(5.0);
     let mut init = InitParams::default();
     assert_eq!(call(Func::Init, &mut init), STATUS_OK, "init");
     let c = init.config;
@@ -18,7 +21,9 @@ fn main() {
     let nout = c.n_outputs as usize;
 
     // [ch][half] buffers, f32 or i32
-    let mut bufs: Vec<[Vec<u32>; 2]> = (0..nout).map(|_| [vec![0; frames], vec![0; frames]]).collect();
+    let mut bufs: Vec<[Vec<u32>; 2]> = (0..nout)
+        .map(|_| [vec![0; frames], vec![0; frames]])
+        .collect();
     let mut cp = CreateBuffersParams {
         frames: frames as u32,
         n_outputs: nout as u32,
@@ -30,7 +35,11 @@ fn main() {
     for (ch, b) in bufs.iter_mut().enumerate() {
         cp.outputs[ch] = [b[0].as_mut_ptr() as u64, b[1].as_mut_ptr() as u64];
     }
-    assert_eq!(call(Func::CreateBuffers, &mut cp), STATUS_OK, "createBuffers");
+    assert_eq!(
+        call(Func::CreateBuffers, &mut cp),
+        STATUS_OK,
+        "createBuffers"
+    );
     assert_eq!(call(Func::Start, &mut ()), STATUS_OK, "start");
 
     let ptrs: Vec<[u64; 2]> = cp.outputs[..nout].to_vec();
@@ -45,7 +54,11 @@ fn main() {
             if w.status == WAIT_STOPPED {
                 break;
             }
-            let rate = if w.sample_rate != 0 { w.sample_rate } else { c.sample_rate } as f64;
+            let rate = if w.sample_rate != 0 {
+                w.sample_rate
+            } else {
+                c.sample_rate
+            } as f64;
             let step = 440.0 * std::f64::consts::TAU / rate;
             for i in 0..frames {
                 let v = (phase.sin() * 0.05) as f32;
@@ -53,7 +66,8 @@ fn main() {
                 for p in &ptrs {
                     unsafe {
                         if c.sample_format == FMT_I32 {
-                            *(p[w.half as usize] as *mut i32).add(i) = (v as f64 * 2147483647.0) as i32;
+                            *(p[w.half as usize] as *mut i32).add(i) =
+                                (v as f64 * 2147483647.0) as i32;
                         } else {
                             *(p[w.half as usize] as *mut f32).add(i) = v;
                         }
@@ -66,8 +80,14 @@ fn main() {
             }
             last_ns = w.system_ns;
             n += 1;
-            if n % 2000 == 0 {
-                println!("blocks={n} pos={} rate={} xruns={} max_gap={:.3}ms", w.sample_pos, w.sample_rate, w.xruns, max_gap as f64 / 1e6);
+            if n.is_multiple_of(2000) {
+                println!(
+                    "blocks={n} pos={} rate={} xruns={} max_gap={:.3}ms",
+                    w.sample_pos,
+                    w.sample_rate,
+                    w.xruns,
+                    max_gap as f64 / 1e6
+                );
                 max_gap = 0;
             }
         }

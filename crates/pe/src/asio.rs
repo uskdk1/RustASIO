@@ -57,7 +57,10 @@ pub struct Asio64 {
 
 impl From<u64> for Asio64 {
     fn from(v: u64) -> Self {
-        Asio64 { hi: (v >> 32) as u32, lo: v as u32 }
+        Asio64 {
+            hi: (v >> 32) as u32,
+            lo: v as u32,
+        }
     }
 }
 
@@ -127,10 +130,12 @@ const _: () = {
 pub struct AsioCallbacks {
     pub buffer_switch: Option<unsafe extern "C" fn(index: i32, direct: AsioBool)>,
     pub sample_rate_did_change: Option<unsafe extern "C" fn(rate: AsioSampleRate)>,
-    pub asio_message:
-        Option<unsafe extern "C" fn(selector: i32, value: i32, msg: *mut c_void, opt: *mut f64) -> i32>,
-    pub buffer_switch_time_info:
-        Option<unsafe extern "C" fn(params: *mut AsioTime, index: i32, direct: AsioBool) -> *mut AsioTime>,
+    pub asio_message: Option<
+        unsafe extern "C" fn(selector: i32, value: i32, msg: *mut c_void, opt: *mut f64) -> i32,
+    >,
+    pub buffer_switch_time_info: Option<
+        unsafe extern "C" fn(params: *mut AsioTime, index: i32, direct: AsioBool) -> *mut AsioTime,
+    >,
 }
 
 /// Copy `s` into a fixed C buffer of `cap` bytes, NUL-terminated.

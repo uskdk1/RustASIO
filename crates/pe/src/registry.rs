@@ -30,7 +30,10 @@ fn set_value(root: HKEY, path: &str, name: Option<&str>, value: &[u16]) -> Resul
         let name_w = name.map(wide);
         let r = RegSetValueExW(
             key,
-            name_w.as_ref().map(|n| n.as_ptr()).unwrap_or(std::ptr::null()),
+            name_w
+                .as_ref()
+                .map(|n| n.as_ptr())
+                .unwrap_or(std::ptr::null()),
             0,
             REG_SZ,
             value.as_ptr() as *const u8,
@@ -51,20 +54,46 @@ fn module_path() -> Vec<u16> {
 
 pub fn register() -> Result<(), u32> {
     let clsid_key = format!("CLSID\\{CLSID_STR}");
-    set_value(HKEY_CLASSES_ROOT, &clsid_key, None, &wide("RustASIO Object"))?;
+    set_value(
+        HKEY_CLASSES_ROOT,
+        &clsid_key,
+        None,
+        &wide("RustASIO Object"),
+    )?;
     let inproc = format!("{clsid_key}\\InprocServer32");
     set_value(HKEY_CLASSES_ROOT, &inproc, None, &module_path())?;
-    set_value(HKEY_CLASSES_ROOT, &inproc, Some("ThreadingModel"), &wide("Apartment"))?;
+    set_value(
+        HKEY_CLASSES_ROOT,
+        &inproc,
+        Some("ThreadingModel"),
+        &wide("Apartment"),
+    )?;
 
     let asio_key = format!("Software\\ASIO\\{DRIVER_NAME}");
-    set_value(HKEY_LOCAL_MACHINE, &asio_key, Some("CLSID"), &wide(CLSID_STR))?;
-    set_value(HKEY_LOCAL_MACHINE, &asio_key, Some("Description"), &wide(DRIVER_NAME))?;
+    set_value(
+        HKEY_LOCAL_MACHINE,
+        &asio_key,
+        Some("CLSID"),
+        &wide(CLSID_STR),
+    )?;
+    set_value(
+        HKEY_LOCAL_MACHINE,
+        &asio_key,
+        Some("Description"),
+        &wide(DRIVER_NAME),
+    )?;
     Ok(())
 }
 
 pub fn unregister() {
     unsafe {
-        RegDeleteTreeW(HKEY_CLASSES_ROOT, wide(&format!("CLSID\\{CLSID_STR}")).as_ptr());
-        RegDeleteTreeW(HKEY_LOCAL_MACHINE, wide(&format!("Software\\ASIO\\{DRIVER_NAME}")).as_ptr());
+        RegDeleteTreeW(
+            HKEY_CLASSES_ROOT,
+            wide(&format!("CLSID\\{CLSID_STR}")).as_ptr(),
+        );
+        RegDeleteTreeW(
+            HKEY_LOCAL_MACHINE,
+            wide(&format!("Software\\ASIO\\{DRIVER_NAME}")).as_ptr(),
+        );
     }
 }

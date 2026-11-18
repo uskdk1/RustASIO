@@ -57,8 +57,14 @@ macro_rules! log {
     ($($t:tt)*) => { $crate::log(&format!($($t)*)) };
 }
 
+/// # Safety
+/// Called by the Windows loader only.
 #[unsafe(no_mangle)]
-pub unsafe extern "system" fn DllMain(hinst: HINSTANCE, reason: u32, _reserved: *mut c_void) -> BOOL {
+pub unsafe extern "system" fn DllMain(
+    hinst: HINSTANCE,
+    reason: u32,
+    _reserved: *mut c_void,
+) -> BOOL {
     if reason == DLL_PROCESS_ATTACH {
         MODULE.store(hinst, Ordering::Relaxed);
         unsafe { DisableThreadLibraryCalls(hinst) };
@@ -99,7 +105,9 @@ static FACTORY_VTBL: ClassFactoryVtbl = ClassFactoryVtbl {
     lock_server: cf_lock_server,
 };
 
-static FACTORY: ClassFactory = ClassFactory { vtbl: &FACTORY_VTBL };
+static FACTORY: ClassFactory = ClassFactory {
+    vtbl: &FACTORY_VTBL,
+};
 
 unsafe extern "system" fn cf_query_interface(
     this: *mut ClassFactory,
@@ -161,6 +169,8 @@ unsafe extern "system" fn cf_lock_server(_this: *mut ClassFactory, lock: BOOL) -
 // ---------------------------------------------------------------------------
 // DLL exports
 
+/// # Safety
+/// COM entry point: `rclsid`/`riid` must be valid GUID pointers, `ppv` writable.
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn DllGetClassObject(
     rclsid: *const GUID,
@@ -175,13 +185,21 @@ pub unsafe extern "system" fn DllGetClassObject(
         if !guid_eq(rclsid, &CLSID_RUSTASIO) {
             return CLASS_E_CLASSNOTAVAILABLE;
         }
-        cf_query_interface(&FACTORY as *const ClassFactory as *mut ClassFactory, riid, ppv)
+        cf_query_interface(
+            &FACTORY as *const ClassFactory as *mut ClassFactory,
+            riid,
+            ppv,
+        )
     }
 }
 
 #[unsafe(no_mangle)]
 pub extern "system" fn DllCanUnloadNow() -> HRESULT {
-    if OBJECTS.load(Ordering::Acquire) == 0 { S_OK } else { S_FALSE }
+    if OBJECTS.load(Ordering::Acquire) == 0 {
+        S_OK
+    } else {
+        S_FALSE
+    }
 }
 
 #[unsafe(no_mangle)]
