@@ -24,6 +24,10 @@ nix develop -c cargo xtask dist
 
 `xtask`는 PE에 `Wine builtin DLL` 서명을 넣고, `.so`에서 RUNPATH를 제거합니다. 그래서 Steam Linux Runtime 컨테이너 안의 `libpipewire-0.3.so.0`을 그대로 사용합니다.
 
+## 릴리스 받기
+
+빌드 없이 쓰려면 GitHub Releases에서 `rustasio-<버전>-x86_64-linux.tar.gz`를 받아 압축을 풉니다. 그 안의 `scripts/install.sh`를 아래 설치 절차대로 실행하면 됩니다. 압축 파일에는 `dist/`, 스크립트, 설정 예시, README가 들어 있습니다.
+
 ## 설치 (Steam / Proton)
 
 게임을 끈 상태에서 실행합니다.
@@ -102,3 +106,24 @@ cat .testpfx/pfx/drive_c/asiotest.log
 - `crates/unix`: `__wine_unix_call_funcs`, PipeWire 엔진(futex 동기화), 설정
 - `crates/testhost`: Proton에서 돌리는 최소 ASIO 호스트(`asiotest.exe`)
 - `xtask`: 빌드와 후처리
+
+## CI / 릴리스
+
+[.github/workflows/ci.yml](.github/workflows/ci.yml)은 Nix dev shell에서 다음을 실행합니다.
+- `cargo fmt --check`
+- clippy (`-D warnings`, linux와 windows 타깃 모두)
+- 단위 테스트
+- `cargo xtask package`: dist를 빌드하고 `verify`를 통과한 뒤 tar.gz를 만듭니다.
+
+`cargo xtask verify`가 검사하는 항목:
+- DLL의 builtin 서명
+- DLL export 디렉터리 이름과 COM export
+- `.so`에 RUNPATH가 없는지
+- `.so`의 libpipewire 의존성
+- `.so`의 `__wine_unix_call_funcs`
+- `.so`의 GLIBC 버전이 2.34 이하인지
+
+릴리스 방법:
+1. `Cargo.toml`의 `workspace.package.version`을 올리고 커밋합니다.
+2. 같은 버전의 태그를 푸시합니다: `git tag v0.1.0 && git push origin v0.1.0`
+3. CI가 태그와 버전이 일치하는지 확인한 뒤, GitHub Release에 압축 파일을 올립니다.

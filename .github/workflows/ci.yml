@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Lint, test, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Prepare dev shell
+        run: nix develop -c rustc --version
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: rustfmt
+        run: nix develop -c cargo fmt --all --check
+
+      - name: clippy (linux targets)
+        run: >
+          nix develop -c cargo clippy --workspace
+          --exclude rustasio-pe --exclude rustasio-testhost
+          --all-targets -- -D warnings
+
+      - name: clippy (windows targets)
+        run: >
+          nix develop -c cargo clippy
+          -p rustasio-pe -p rustasio-testhost
+          --target x86_64-pc-windows-gnu -- -D warnings
+
+      - name: unit tests
+        run: nix develop -c cargo test -p rustasio-unix --lib
+
+      - name: build dist + verify + package
+        run: nix develop -c cargo xtask package
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rustasio-x86_64-linux
+          path: target/package/*.tar.gz
+          if-no-files-found: error
+
+  release:
+    name: GitHub Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: rustasio-x86_64-linux
+          path: out
+
+      - name: Check tag matches crate version
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match workspace version $version"
+            exit 1
+          fi
+          test -f "out/rustasio-$version-x86_64-linux.tar.gz"
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "$GITHUB_REF_NAME" out/*.tar.gz
+          --title "RustASIO $GITHUB_REF_NAME"
+          --generate-notes --verify-tag
