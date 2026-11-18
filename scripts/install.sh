@@ -16,8 +16,21 @@ SYS32="$PFX/pfx/drive_c/windows/system32"
 
 die() { echo "install: $*" >&2; exit 1; }
 [[ -d "$SYS32" ]] || die "no Proton prefix at $PFX (run the game once first)"
-if pgrep -f "$PFX/"  >/dev/null 2>&1; then
-    die "something is running in prefix $APPID; quit the game first"
+# Is any Wine process using this prefix? (Match WINEPREFIX in the environment,
+# not command lines: the shell running this script may mention the path.)
+prefix_in_use() {
+    local want p
+    want=$(realpath -m "$PFX/pfx")
+    for p in /proc/[0-9]*; do
+        [[ $p == "/proc/$$" ]] && continue
+        local env
+        env=$(tr '\0' '\n' < "$p/environ" 2>/dev/null | sed -n 's/^WINEPREFIX=//p') || continue
+        [[ -n $env ]] && [[ $(realpath -m "$env") == "$want" ]] && return 0
+    done
+    return 1
+}
+if prefix_in_use; then
+    die "a Wine process is using $PFX; quit the game first"
 fi
 
 if (( uninstall )); then
