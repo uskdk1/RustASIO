@@ -227,7 +227,7 @@ fn package() {
         .arg(&tarball)
         .arg(format!("--transform=s,^,{name}/,"))
         .args(["--owner=0", "--group=0", "--sort=name"])
-        .args(["dist", "scripts", "config.example.toml", "README.md"]));
+        .args(["dist", "scripts", "config.example.toml", "README.md", "LICENSE"]));
     println!("{}", tarball.display());
 }
 

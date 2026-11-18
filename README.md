@@ -127,3 +127,9 @@ cat .testpfx/pfx/drive_c/asiotest.log
 1. `Cargo.toml`의 `workspace.package.version`을 올리고 커밋합니다.
 2. 같은 버전의 태그를 푸시합니다: `git tag v0.1.0 && git push origin v0.1.0`
 3. CI가 태그와 버전이 일치하는지 확인한 뒤, GitHub Release에 압축 파일을 올립니다.
+
+## 라이선스
+
+MIT. 자세한 내용은 [LICENSE](LICENSE)를 참고하세요.
+
+ASIO는 Steinberg Media Technologies GmbH의 상표입니다. 이 프로젝트는 ASIO SDK의 코드를 포함하지 않고, 인터페이스 정의를 독자적으로 다시 작성해 사용합니다.
