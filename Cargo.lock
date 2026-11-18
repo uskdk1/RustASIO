@@ -268,11 +268,11 @@ checksum = "d902046e6a28a1e4c3cab97258a0ce11e994903f01c2d97a9447a0b3df85f4f6"
 
 [[package]]
 name = "rustasio-abi"
-version = "0.1.1"
+version = "0.1.2"
 
 [[package]]
 name = "rustasio-pe"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "rustasio-abi",
  "windows-sys",
@@ -280,14 +280,14 @@ dependencies = [
 
 [[package]]
 name = "rustasio-testhost"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "windows-sys",
 ]
 
 [[package]]
 name = "rustasio-unix"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "libc",
  "libspa-sys",
@@ -469,4 +469,4 @@ checksum = "8c3b93199df0ab874cdf0c6a94f0a0dc3423fe41f1cafb62b8bd7b1deb277aef"
 
 [[package]]
 name = "xtask"
-version = "0.1.1"
+version = "0.1.2"
