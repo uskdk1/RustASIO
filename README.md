@@ -44,7 +44,7 @@ WINEDLLPATH=$HOME/.local/share/rustasio/lib/wine PROTON_ENABLE_WAYLAND=1 mangohu
 
 ## 설정
 
-`~/.config/rustasio/config.toml` 파일이나 환경변수로 설정합니다. 예시는 [config.example.toml](config.example.toml)에 있습니다.
+`~/.config/rustasio/config.toml` 파일이나 환경변수로 설정합니다. 이 파일이 없으면 드라이버가 처음 열릴 때 기본값과 설명이 담긴 파일을 만듭니다. 내용은 [config.example.toml](config.example.toml)과 같고, 이미 있는 파일은 덮어쓰지 않습니다. 값을 바꾼 뒤에는 게임을 다시 시작하세요. 환경변수가 파일보다 우선합니다.
 
 | 키 | 환경변수 | 기본값 |
 |---|---|---|

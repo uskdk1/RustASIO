@@ -1,5 +1,7 @@
-# Copy to ~/.config/rustasio/config.toml. Every key can also be set with an
-# environment variable, e.g. RUSTASIO_BUFFER=32 (see README).
+# RustASIO configuration: ~/.config/rustasio/config.toml
+# Written with the default values on first use; edit and restart the game.
+# Every key can also be overridden by an environment variable, e.g.
+# RUSTASIO_HEADROOM=256 (see README).
 
 # ASIO / PipeWire sample rate. The PipeWire graph is forced to this rate
 # (needs it in default.clock.allowed-rates when it differs from the default).
@@ -29,7 +31,7 @@ sample_format = "f32"
 sync = false
 
 # PipeWire node to connect to (node.name or object.serial); empty = default sink.
-# target = "alsa_output.usb-0600_USBFC1-00.analog-stereo"
+# target = "alsa_output.usb-XXXX.analog-stereo"
 auto_connect = true
 
 # SCHED_FIFO priority for the game's bufferSwitch thread (needs RLIMIT_RTPRIO).

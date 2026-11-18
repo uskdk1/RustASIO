@@ -4,7 +4,11 @@
 //! The file is a flat `key = value` list (TOML subset); sections are ignored.
 
 use rustasio_abi::{FMT_F32, FMT_I32, MAX_CHANNELS};
-use std::path::PathBuf;
+use std::io::Write;
+use std::path::{Path, PathBuf};
+
+/// Commented default config, written on first use.
+pub const DEFAULT_CONFIG: &str = include_str!("../../../config.example.toml");
 
 #[derive(Clone, Debug)]
 pub struct Settings {
@@ -128,19 +132,40 @@ impl Settings {
         Some(base.join("rustasio").join("config.toml"))
     }
 
+    fn apply_text(&mut self, text: &str) {
+        for line in text.lines() {
+            let line = line.split('#').next().unwrap_or("").trim();
+            if line.is_empty() || line.starts_with('[') {
+                continue;
+            }
+            if let Some((k, v)) = line.split_once('=') {
+                self.apply(k.trim(), v);
+            }
+        }
+    }
+
+    /// Write the commented default config if none exists yet. Never
+    /// overwrites; failures (read-only home, sandbox) are only logged.
+    fn write_default(path: &Path) -> std::io::Result<()> {
+        if let Some(dir) = path.parent() {
+            std::fs::create_dir_all(dir)?;
+        }
+        let mut f = std::fs::OpenOptions::new().write(true).create_new(true).open(path)?;
+        f.write_all(DEFAULT_CONFIG.as_bytes())
+    }
+
     pub fn load() -> Self {
         let mut s = Self::default();
         if let Some(path) = Self::config_path() {
-            if let Ok(text) = std::fs::read_to_string(&path) {
-                for line in text.lines() {
-                    let line = line.split('#').next().unwrap_or("").trim();
-                    if line.is_empty() || line.starts_with('[') {
-                        continue;
-                    }
-                    if let Some((k, v)) = line.split_once('=') {
-                        s.apply(k.trim(), v);
+            match std::fs::read_to_string(&path) {
+                Ok(text) => s.apply_text(&text),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                    match Self::write_default(&path) {
+                        Ok(()) => eprintln!("[rustasio] wrote default config to {}", path.display()),
+                        Err(e) => eprintln!("[rustasio] cannot create {}: {e}", path.display()),
                     }
                 }
+                Err(e) => eprintln!("[rustasio] cannot read {}: {e}", path.display()),
             }
         }
         for (env, key) in [
@@ -163,5 +188,31 @@ impl Settings {
             }
         }
         s
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The generated file must describe exactly the built-in defaults.
+    #[test]
+    fn default_config_matches_defaults() {
+        let mut s = Settings::default();
+        s.apply_text(DEFAULT_CONFIG);
+        assert_eq!(format!("{s:?}"), format!("{:?}", Settings::default()));
+    }
+
+    #[test]
+    fn writes_default_once() {
+        let dir = std::env::temp_dir().join(format!("rustasio-test-{}", std::process::id()));
+        let path = dir.join("sub/config.toml");
+        let _ = std::fs::remove_dir_all(&dir);
+        Settings::write_default(&path).unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), DEFAULT_CONFIG);
+        std::fs::write(&path, "headroom = 512\n").unwrap();
+        assert!(Settings::write_default(&path).is_err(), "must not overwrite");
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "headroom = 512\n");
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }
