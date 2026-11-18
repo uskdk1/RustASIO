@@ -1,0 +1,15 @@
+[package]
+name = "rustasio-unix"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "rustasio_unix"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+rustasio-abi = { path = "../abi" }
+pipewire-sys = "0.10.1"
+libspa-sys = "0.10.1"
+libc = "0.2"

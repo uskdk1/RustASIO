@@ -1,0 +1,8 @@
+target/
+dist/
+.testpfx/
+result
+.direnv/
+
+# reference binary from the game (proprietary FMOD, not redistributable)
+fmodstudio.dll

@@ -1,0 +1,39 @@
+# Copy to ~/.config/rustasio/config.toml. Every key can also be set with an
+# environment variable, e.g. RUSTASIO_BUFFER=32 (see README).
+
+# ASIO / PipeWire sample rate. The PipeWire graph is forced to this rate
+# (needs it in default.clock.allowed-rates when it differs from the default).
+sample_rate = 48000
+
+# Preferred ASIO buffer (frames). By default the game may pick its own size
+# (16..4096, power of 2): FMOD then renders exactly one DSP block per callback.
+buffer_size = 64
+# true: offer only buffer_size (FMOD then adapts internally, bursty callbacks)
+fixed_buffer = false
+
+# PipeWire graph quantum (frames) forced while running. 64 @ 48 kHz = 1.33 ms.
+quantum = 64
+
+# Frames buffered beyond one ASIO buffer, to absorb late wake-ups of the game
+# thread. Output latency ~= ASIO buffer + headroom + quantum.
+headroom = 128
+
+outputs = 2
+
+# Sample format handed to the game: "f32" (no conversion) or "i32".
+sample_format = "f32"
+
+# false: ring buffer between game and PipeWire (robust, see headroom)
+# true:  PipeWire cycle waits for the game to render the buffer it plays
+#        (quantum = ASIO buffer, no headroom; xruns if the game thread is late)
+sync = false
+
+# PipeWire node to connect to (node.name or object.serial); empty = default sink.
+# target = "alsa_output.usb-0600_USBFC1-00.analog-stereo"
+auto_connect = true
+
+# SCHED_FIFO priority for the game's bufferSwitch thread (needs RLIMIT_RTPRIO).
+rt_priority = 80
+
+node_name = "RustASIO"
+log = false
