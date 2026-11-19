@@ -56,11 +56,45 @@ pub struct Config {
     pub _pad: u32,
 }
 
+pub const INIT_ERROR_LEN: usize = 256;
+
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug)]
 pub struct InitParams {
     /// out
     pub config: Config,
+    /// out, on failure: NUL-terminated UTF-8 reason
+    pub error: [u8; INIT_ERROR_LEN],
+}
+
+impl Default for InitParams {
+    fn default() -> Self {
+        Self {
+            config: Config::default(),
+            error: [0; INIT_ERROR_LEN],
+        }
+    }
+}
+
+impl InitParams {
+    /// Store `msg` (truncated on a char boundary) as the failure reason.
+    pub fn set_error(&mut self, msg: &str) {
+        let mut n = msg.len().min(INIT_ERROR_LEN - 1);
+        while !msg.is_char_boundary(n) {
+            n -= 1;
+        }
+        self.error[..n].copy_from_slice(&msg.as_bytes()[..n]);
+        self.error[n] = 0;
+    }
+
+    pub fn error_str(&self) -> &str {
+        let n = self
+            .error
+            .iter()
+            .position(|&b| b == 0)
+            .unwrap_or(INIT_ERROR_LEN);
+        core::str::from_utf8(&self.error[..n]).unwrap_or("")
+    }
 }
 
 #[repr(C)]

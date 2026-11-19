@@ -244,13 +244,19 @@ unsafe extern "system" fn init(this: This, _sys: *mut c_void) -> AsioBool {
             return ASIO_TRUE;
         }
         if !unixlib::available() {
-            g.error =
-                "unix library not loaded (is the DLL marked builtin / WINEDLLPATH set?)".into();
+            g.error = "unix library rustasio64.so not loaded (is the DLL marked builtin / \
+                       WINEDLLPATH set?)"
+                .into();
+            report_init_error(&g.error);
             return ASIO_FALSE;
         }
         let mut p = InitParams::default();
         if unixlib::call(Func::Init, &mut p) != STATUS_OK {
-            g.error = "cannot connect to PipeWire".into();
+            g.error = match p.error_str() {
+                "" => "PipeWire initialization failed".into(),
+                e => e.into(),
+            };
+            report_init_error(&g.error);
             return ASIO_FALSE;
         }
         g.cfg = p.config;
@@ -259,6 +265,36 @@ unsafe extern "system" fn init(this: This, _sys: *mut c_void) -> AsioBool {
         crate::log!("init ok: {:?}", g.cfg);
         ASIO_TRUE
     }
+}
+
+static INIT_ERROR_SHOWN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Many hosts ignore getErrorMessage and only complain about missing channels,
+/// so show the real reason once per process. The box runs on its own thread:
+/// init() must not block on the user, and the host may hold its UI locks.
+fn report_init_error(msg: &str) {
+    crate::log(&format!("init failed: {msg}"));
+    if INIT_ERROR_SHOWN.swap(true, Ordering::Relaxed)
+        || std::env::var_os("RUSTASIO_NO_ERROR_DIALOG").is_some()
+    {
+        return;
+    }
+    let text: Vec<u16> = format!("RustASIO could not start:\n\n{msg}")
+        .encode_utf16()
+        .chain([0])
+        .collect();
+    let _ = std::thread::Builder::new()
+        .name("rustasio-error".into())
+        .spawn(move || unsafe {
+            use windows_sys::Win32::UI::WindowsAndMessaging::*;
+            let title: Vec<u16> = "RustASIO".encode_utf16().chain([0]).collect();
+            MessageBoxW(
+                std::ptr::null_mut(),
+                text.as_ptr(),
+                title.as_ptr(),
+                MB_OK | MB_ICONERROR | MB_SETFOREGROUND | MB_TOPMOST,
+            );
+        });
 }
 
 unsafe extern "system" fn get_driver_name(_this: This, name: *mut u8) {

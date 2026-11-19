@@ -175,8 +175,10 @@ fn verify() -> Vec<String> {
     if dynamic.contains("(RUNPATH)") || dynamic.contains("(RPATH)") {
         errs.push("so: has RUNPATH/RPATH (would load libs from the Nix store)".into());
     }
-    if !dynamic.contains("[libpipewire-0.3.so.0]") {
-        errs.push("so: not linked against libpipewire-0.3.so.0".into());
+    // libpipewire is dlopen'ed at init (with fallbacks and a readable error);
+    // a DT_NEEDED entry would make Wine drop the whole .so when it is missing.
+    if dynamic.contains("libpipewire") {
+        errs.push("so: has a link-time dependency on libpipewire (must be dlopen'ed)".into());
     }
     let syms = output(Command::new("nm").args(["-D", "--defined-only"]).arg(&so));
     if !syms

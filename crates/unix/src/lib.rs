@@ -3,6 +3,7 @@
 
 pub mod config;
 pub mod engine;
+pub mod pwlib;
 
 use rustasio_abi::*;
 use std::ffi::c_void;
@@ -57,6 +58,7 @@ unsafe extern "C" fn unix_init(args: *mut c_void) -> i32 {
                 Ok(e) => *g = Some(e),
                 Err(e) => {
                     eprintln!("[rustasio] init failed: {e}");
+                    p.set_error(&e);
                     return STATUS_FAIL;
                 }
             }

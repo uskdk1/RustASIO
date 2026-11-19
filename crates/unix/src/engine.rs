@@ -11,6 +11,7 @@
 
 use crate::config::Settings;
 use crate::log;
+use crate::pwlib;
 use libspa_sys as spa;
 use pipewire_sys as pw;
 use rustasio_abi::*;
@@ -237,7 +238,8 @@ unsafe extern "C" fn on_state_changed(
     error: *const std::ffi::c_char,
 ) {
     unsafe {
-        let s = |st| std::ffi::CStr::from_ptr(pw::pw_stream_state_as_string(st)).to_string_lossy();
+        let s =
+            |st| std::ffi::CStr::from_ptr(pwlib::pw_stream_state_as_string(st)).to_string_lossy();
         let err = if error.is_null() {
             String::new()
         } else {
@@ -258,7 +260,7 @@ unsafe extern "C" fn on_io_changed(data: *mut c_void, id: u32, area: *mut c_void
 unsafe extern "C" fn on_process(data: *mut c_void) {
     unsafe {
         let rt = &mut *(*(data as *const UnsafeCell<Rt>)).get();
-        let b = pw::pw_stream_dequeue_buffer(rt.stream);
+        let b = pwlib::pw_stream_dequeue_buffer(rt.stream);
         if b.is_null() {
             return;
         }
@@ -298,7 +300,7 @@ unsafe extern "C" fn on_process(data: *mut c_void) {
                 (*sd.chunk).size = n * 4;
             }
         }
-        pw::pw_stream_queue_buffer(rt.stream, b);
+        pwlib::pw_stream_queue_buffer(rt.stream, b);
     }
 }
 
@@ -505,13 +507,13 @@ pub static ENGINE: Mutex<Option<Engine>> = Mutex::new(None);
 struct Lock(*mut pw::pw_thread_loop);
 impl Lock {
     fn new(tl: *mut pw::pw_thread_loop) -> Self {
-        unsafe { pw::pw_thread_loop_lock(tl) };
+        unsafe { pwlib::pw_thread_loop_lock(tl) };
         Lock(tl)
     }
 }
 impl Drop for Lock {
     fn drop(&mut self) {
-        unsafe { pw::pw_thread_loop_unlock(self.0) };
+        unsafe { pwlib::pw_thread_loop_unlock(self.0) };
     }
 }
 
@@ -592,37 +594,38 @@ fn audio_format_pod(rate: u32, channels: u32) -> Vec<u64> {
 fn props_set(p: *mut pw::pw_properties, k: &str, v: &str) {
     let k = CString::new(k).unwrap();
     let v = CString::new(v).unwrap();
-    unsafe { pw::pw_properties_set(p, k.as_ptr(), v.as_ptr()) };
+    unsafe { pwlib::pw_properties_set(p, k.as_ptr(), v.as_ptr()) };
 }
 
 impl Engine {
     pub fn new(settings: Settings) -> Result<Self, String> {
+        pwlib::load()?;
         unsafe {
-            pw::pw_init(ptr::null_mut(), ptr::null_mut());
+            pwlib::pw_init(ptr::null_mut(), ptr::null_mut());
             let name = CString::new("rustasio-pw").unwrap();
-            let tl = pw::pw_thread_loop_new(name.as_ptr(), ptr::null());
+            let tl = pwlib::pw_thread_loop_new(name.as_ptr(), ptr::null());
             if tl.is_null() {
                 return Err("pw_thread_loop_new failed".into());
             }
-            let ctx = pw::pw_context_new(pw::pw_thread_loop_get_loop(tl), ptr::null_mut(), 0);
+            let ctx = pwlib::pw_context_new(pwlib::pw_thread_loop_get_loop(tl), ptr::null_mut(), 0);
             if ctx.is_null() {
-                pw::pw_thread_loop_destroy(tl);
+                pwlib::pw_thread_loop_destroy(tl);
                 return Err("pw_context_new failed".into());
             }
-            if pw::pw_thread_loop_start(tl) < 0 {
-                pw::pw_context_destroy(ctx);
-                pw::pw_thread_loop_destroy(tl);
+            if pwlib::pw_thread_loop_start(tl) < 0 {
+                pwlib::pw_context_destroy(ctx);
+                pwlib::pw_thread_loop_destroy(tl);
                 return Err("pw_thread_loop_start failed".into());
             }
             let core = {
                 let _l = Lock::new(tl);
-                pw::pw_context_connect(ctx, ptr::null_mut(), 0)
+                pwlib::pw_context_connect(ctx, ptr::null_mut(), 0)
             };
             if core.is_null() {
-                pw::pw_thread_loop_stop(tl);
-                pw::pw_context_destroy(ctx);
-                pw::pw_thread_loop_destroy(tl);
-                return Err("cannot connect to PipeWire".into());
+                pwlib::pw_thread_loop_stop(tl);
+                pwlib::pw_context_destroy(ctx);
+                pwlib::pw_thread_loop_destroy(tl);
+                return Err("cannot connect to the PipeWire daemon (is it running?)".into());
             }
             Ok(Engine {
                 settings,
@@ -642,7 +645,7 @@ impl Engine {
         let rate = s.sample_rate;
 
         unsafe {
-            let props = pw::pw_properties_new(ptr::null());
+            let props = pwlib::pw_properties_new_empty();
             props_set(props, "media.type", "Audio");
             props_set(props, "media.category", "Playback");
             props_set(props, "media.role", "Game");
@@ -696,13 +699,13 @@ impl Engine {
 
             let _l = Lock::new(self.tl);
             let name = CString::new(s.node_name.as_str()).unwrap();
-            let stream = pw::pw_stream_new(self.core, name.as_ptr(), props);
+            let stream = pwlib::pw_stream_new(self.core, name.as_ptr(), props);
             if stream.is_null() {
                 return Err("pw_stream_new failed".into());
             }
             rt.get_mut().stream = stream;
             let mut hook: Box<spa::spa_hook> = Box::new(std::mem::zeroed());
-            pw::pw_stream_add_listener(
+            pwlib::pw_stream_add_listener(
                 stream,
                 &mut *hook as *mut spa::spa_hook as *mut _,
                 &STREAM_EVENTS,
@@ -711,7 +714,7 @@ impl Engine {
 
             let pod = audio_format_pod(rate, nout as u32);
             let mut params = [pod.as_ptr() as *const spa::spa_pod];
-            let r = pw::pw_stream_connect(
+            let r = pwlib::pw_stream_connect(
                 stream,
                 1, // SPA_DIRECTION_OUTPUT
                 pw::PW_ID_ANY,
@@ -723,7 +726,7 @@ impl Engine {
                 1,
             );
             if r < 0 {
-                pw::pw_stream_destroy(stream);
+                pwlib::pw_stream_destroy(stream);
                 return Err(format!("pw_stream_connect failed: {r}"));
             }
             log!(
@@ -752,7 +755,7 @@ impl Engine {
         if let Some(st) = self.stream.take() {
             unsafe {
                 let _l = Lock::new(self.tl);
-                pw::pw_stream_destroy(st.stream);
+                pwlib::pw_stream_destroy(st.stream);
             }
             RING.store(ptr::null_mut(), Release);
             drop(st.hook);
@@ -788,7 +791,7 @@ impl Engine {
                 sh.host_half.store(0, Relaxed);
             }
             sh.running.store(true, Release);
-            pw::pw_stream_set_active(st.stream, true);
+            pwlib::pw_stream_set_active(st.stream, true);
         }
         log!("started");
         Ok(())
@@ -807,7 +810,7 @@ impl Engine {
         if let Some(st) = &self.stream {
             unsafe {
                 let _l = Lock::new(self.tl);
-                pw::pw_stream_set_active(st.stream, false);
+                pwlib::pw_stream_set_active(st.stream, false);
             }
         }
         log!("stopped (xruns: {})", sh.xruns.load(Relaxed));
@@ -819,7 +822,7 @@ impl Engine {
             unsafe {
                 let _l = Lock::new(self.tl);
                 let rt = &*st.rt.get();
-                let props = pw::pw_properties_new(ptr::null());
+                let props = pwlib::pw_properties_new_empty();
                 props_set(props, "node.force-rate", &rate.to_string());
                 let q = if rt.sync {
                     rt.frames
@@ -827,8 +830,8 @@ impl Engine {
                     self.settings.quantum
                 };
                 props_set(props, "node.latency", &format!("{q}/{rate}"));
-                pw::pw_stream_update_properties(st.stream, &(*props).dict);
-                pw::pw_properties_free(props);
+                pwlib::pw_stream_update_properties(st.stream, &(*props).dict);
+                pwlib::pw_properties_free(props);
             }
         }
     }
@@ -879,10 +882,10 @@ impl Drop for Engine {
     fn drop(&mut self) {
         self.dispose_buffers();
         unsafe {
-            pw::pw_thread_loop_stop(self.tl);
-            pw::pw_core_disconnect(self.core);
-            pw::pw_context_destroy(self.ctx);
-            pw::pw_thread_loop_destroy(self.tl);
+            pwlib::pw_thread_loop_stop(self.tl);
+            pwlib::pw_core_disconnect(self.core);
+            pwlib::pw_context_destroy(self.ctx);
+            pwlib::pw_thread_loop_destroy(self.tl);
         }
     }
 }

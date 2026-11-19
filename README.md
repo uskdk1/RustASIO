@@ -22,7 +22,9 @@ nix develop -c cargo xtask dist
 #   dist/lib/wine/x86_64-unix/rustasio64.so
 ```
 
-`xtask`는 PE에 `Wine builtin DLL` 서명을 넣고, `.so`에서 RUNPATH를 제거합니다. 그래서 Steam Linux Runtime 컨테이너 안의 `libpipewire-0.3.so.0`을 그대로 사용합니다.
+`xtask`는 PE에 `Wine builtin DLL` 서명을 넣고, `.so`에서 RUNPATH를 제거합니다. `.so`는 libpipewire를 링크하지 않고 초기화 때 `dlopen`합니다. 먼저 기본 검색 경로(Steam Linux Runtime 컨테이너의 `libpipewire-0.3.so.0`)를 쓰고, 없으면 `/run/current-system/sw/lib`, `~/.nix-profile/lib`, `/usr/lib*` 등을 차례로 시도합니다. `RUSTASIO_LIBPIPEWIRE=/경로/libpipewire-0.3.so.0`으로 직접 지정할 수도 있습니다.
+
+초기화에 실패하면 원인을 담은 오류 창을 한 번 띄우고(`RUSTASIO_NO_ERROR_DIALOG=1`로 끔), ASIO `getErrorMessage`로도 돌려줍니다.
 
 ## 릴리스 받기
 
@@ -119,7 +121,7 @@ cat .testpfx/pfx/drive_c/asiotest.log
 - DLL의 builtin 서명
 - DLL export 디렉터리 이름과 COM export
 - `.so`에 RUNPATH가 없는지
-- `.so`의 libpipewire 의존성
+- `.so`에 libpipewire 링크 의존성이 없는지 (런타임 `dlopen`)
 - `.so`의 `__wine_unix_call_funcs`
 - `.so`의 GLIBC 버전이 2.34 이하인지
 
